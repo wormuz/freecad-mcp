@@ -1,4 +1,5 @@
 from .core import (
+    CameraOptions,
     create_document_operation,
     create_object_operation,
     delete_object_operation,
@@ -17,6 +18,7 @@ from .core import (
 )
 
 __all__ = [
+    "CameraOptions",
     "create_document_operation",
     "create_object_operation",
     "delete_object_operation",

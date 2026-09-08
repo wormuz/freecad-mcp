@@ -80,9 +80,12 @@ class FreeCADConnection:
         width: int | None = None,
         height: int | None = None,
         focus_object: str | None = None,
+        camera_direction: list[float] | None = None,
     ) -> str | None:
         try:
-            return self.server.get_active_screenshot(view_name, width, height, focus_object)
+            return self.server.get_active_screenshot(
+                view_name, width, height, focus_object, camera_direction
+            )
         except Exception as e:
             logger.error(f"Error getting screenshot: {e}")
             return None

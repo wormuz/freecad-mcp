@@ -14,6 +14,7 @@ from mcp.types import ImageContent, TextContent
 
 from .freecad_client import FreeCADConnection
 from .operations import (
+    CameraOptions,
     create_document_operation,
     create_object_operation,
     delete_object_operation,
@@ -119,6 +120,10 @@ def create_object(
     obj_properties: dict[str, Any] = None,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Create a new object in FreeCAD.
     Object type is starts with "Part::" or "Draft::" or "PartDesign::" or "Fem::".
@@ -133,6 +138,21 @@ def create_object(
             e.g. for intermediate steps in a longer sequence of changes.
         view_name: The view orientation of the returned screenshot (default "Isometric").
             Pick the view that best shows the change being made.
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A message indicating the success or failure of the object creation and a screenshot of the object.
@@ -250,7 +270,7 @@ def create_object(
         analysis_name,
         obj_properties,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -262,6 +282,10 @@ def edit_object(
     obj_properties: dict[str, Any],
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Edit an object in FreeCAD.
     This tool is used when the `create_object` tool cannot handle the object creation.
@@ -275,6 +299,21 @@ def edit_object(
             e.g. for intermediate steps in a longer sequence of changes.
         view_name: The view orientation of the returned screenshot (default "Isometric").
             Pick the view that best shows the change being made.
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A message indicating the success or failure of the object editing and a screenshot of the object.
@@ -286,7 +325,7 @@ def edit_object(
         obj_name,
         obj_properties,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -297,6 +336,10 @@ def delete_object(
     obj_name: str,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Delete an object in FreeCAD.
 
@@ -308,6 +351,21 @@ def delete_object(
             e.g. for intermediate steps in a longer sequence of changes.
         view_name: The view orientation of the returned screenshot (default "Isometric").
             Pick the view that best shows the change being made.
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A message indicating the success or failure of the object deletion and a screenshot of the object.
@@ -318,7 +376,7 @@ def delete_object(
         doc_name,
         obj_name,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -367,8 +425,19 @@ def execute_code(
     code: str,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Execute arbitrary Python code in FreeCAD.
+
+    Per-face colouring gotcha: ``ViewObject.DiffuseColor`` takes one entry per
+    face of ``Shape.Faces``, in that order. A fourth component is alpha, where
+    1.0 is opaque and 0.0 makes the face fully transparent — passing 0.0
+    meaning "no transparency" silently renders the part invisible (verified on
+    FreeCAD 1.1.3: alpha 0.0 sets Transparency to 100). Pass plain 3-tuples
+    ``(r, g, b)`` and leave opacity to the ``Transparency`` property.
 
     Args:
         code: The Python code to execute.
@@ -378,6 +447,21 @@ def execute_code(
             printed output, or intermediate steps in a longer sequence of changes.
         view_name: The view orientation of the returned screenshot (default "Isometric").
             Pick the view that best shows the change being made.
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A message indicating the success or failure of the code execution, the output of the code execution, and a screenshot of the object.
@@ -387,7 +471,7 @@ def execute_code(
         state.only_text_feedback,
         code,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -398,6 +482,7 @@ def get_view(
     width: int | None = None,
     height: int | None = None,
     focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[ImageContent | TextContent]:
     """Get a screenshot of the active view.
 
@@ -416,11 +501,18 @@ def get_view(
         width: The width of the screenshot in pixels. If not specified, uses the viewport width.
         height: The height of the screenshot in pixels. If not specified, uses the viewport height.
         focus_object: The name of the object to focus on. If not specified, fits all objects in the view.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. Use it for angles the nine named views cannot
+            reach, e.g. inspecting an underside at a tilt. [0, 0, 1] looks from
+            below and matches "Bottom".
 
     Returns:
         A screenshot of the active view.
     """
-    return get_view_operation(get_freecad_connection(), view_name, width, height, focus_object)
+    return get_view_operation(
+        get_freecad_connection(),
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
+    )
 
 
 @mcp.tool(structured_output=False)
@@ -429,6 +521,10 @@ def insert_part_from_library(
     relative_path: str,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Insert a part from the parts library addon.
 
@@ -439,6 +535,21 @@ def insert_part_from_library(
             e.g. for intermediate steps in a longer sequence of changes.
         view_name: The view orientation of the returned screenshot (default "Isometric").
             Pick the view that best shows the change being made.
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A message indicating the success or failure of the part insertion and a screenshot of the object.
@@ -448,7 +559,7 @@ def insert_part_from_library(
         state.only_text_feedback,
         relative_path,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -458,6 +569,10 @@ def get_objects(
     doc_name: str,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Get all objects in a document.
     You can use this tool to get the objects in a document to see what you can check or edit.
@@ -467,6 +582,21 @@ def get_objects(
         include_screenshot: Whether to return a screenshot of the document (default True).
             Set to False to save tokens when only the object data is needed.
         view_name: The view orientation of the returned screenshot (default "Isometric").
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         A list of objects in the document and a screenshot of the document.
@@ -476,7 +606,7 @@ def get_objects(
         state.only_text_feedback,
         doc_name,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -487,6 +617,10 @@ def get_object(
     obj_name: str,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Get an object from a document.
     You can use this tool to get the properties of an object to see what you can check or edit.
@@ -497,6 +631,21 @@ def get_object(
         include_screenshot: Whether to return a screenshot of the document (default True).
             Set to False to save tokens when only the object data is needed.
         view_name: The view orientation of the returned screenshot (default "Isometric").
+        width: Screenshot width in pixels. Defaults to a 1024 px longest edge.
+            Lower it to spend fewer tokens on visual feedback.
+        height: Screenshot height in pixels. Defaults to the viewport aspect.
+        focus_object: Name of an object to frame instead of fitting the whole
+            document. Set it when checking a small feature on a large part —
+            auto-fit can render the change sub-pixel and make a successful
+            edit look like it did nothing.
+        camera_direction: Explicit [x, y, z] direction the camera looks along,
+            overriding view_name. [0, 0, 1] points up, viewing the model from
+            below; [0, 0, -1] points down, viewing it from the top. Use it for
+            angles the nine named views cannot reach.
+            The default camera is an auto-fit isometric view, which cannot show
+            undersides or interior faces at all. Do not treat a default-camera
+            screenshot as evidence about geometry it does not face; aim the
+            camera at the feature, or verify numerically instead.
 
     Returns:
         The object and a screenshot of the object.
@@ -507,7 +656,7 @@ def get_object(
         doc_name,
         obj_name,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 
@@ -576,6 +725,10 @@ def run_fem_analysis(
     timeout: int = 600,
     include_screenshot: bool = True,
     view_name: ViewName = "Isometric",
+    width: int | None = None,
+    height: int | None = None,
+    focus_object: str | None = None,
+    camera_direction: list[float] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Run the CalculiX solver on an existing Fem::FemAnalysis container and return summary results.
 
@@ -613,7 +766,7 @@ def run_fem_analysis(
         analysis_name,
         timeout,
         include_screenshot,
-        view_name,
+        CameraOptions(view_name, width, height, focus_object, camera_direction),
     )
 
 

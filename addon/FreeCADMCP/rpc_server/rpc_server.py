@@ -292,6 +292,7 @@ class FreeCADRPC:
         width: int | None = None,
         height: int | None = None,
         focus_object: str | None = None,
+        camera_direction: list[float] | None = None,
     ) -> str:
         """Get a screenshot of the active view as a base64-encoded PNG string.
 
@@ -312,7 +313,9 @@ class FreeCADRPC:
                     f"MCP RPC: view type '{view_type}' does not support screenshots\n"
                 )
                 return False
-            return save_active_screenshot(tmp_path, view_name, width, height, focus_object)
+            return save_active_screenshot(
+                tmp_path, view_name, width, height, focus_object, camera_direction
+            )
 
         try:
             res = dispatch_to_gui(task, operation_name="get_active_screenshot")
@@ -394,8 +397,11 @@ class FreeCADRPC:
         width: int | None = None,
         height: int | None = None,
         focus_object: str | None = None,
+        camera_direction: list[float] | None = None,
     ):
-        return save_active_screenshot(save_path, view_name, width, height, focus_object)
+        return save_active_screenshot(
+            save_path, view_name, width, height, focus_object, camera_direction
+        )
 
 
 def start_rpc_server(port=9875):

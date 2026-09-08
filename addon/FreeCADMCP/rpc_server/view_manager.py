@@ -73,7 +73,38 @@ _STD_COMMAND_DISPATCH = {
 }
 
 
-def apply_view_orientation(view: Any, view_name: str) -> None:
+def apply_camera_direction(view: Any, direction: Any) -> None:
+    """Point the camera along ``direction`` (a 3-sequence of x, y, z).
+
+    The nine named orientations only cover axis-aligned and standard
+    isometric angles. An arbitrary direction is what lets a caller inspect a
+    part's underside at an angle, where a named view shows either the flat
+    bottom or nothing useful.
+
+    ``direction`` is the vector the camera looks *along*, so ``(0, 0, 1)``
+    views the model from below and matches the "Bottom" named view.
+    """
+    try:
+        x, y, z = (float(component) for component in direction)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"camera_direction must be three numbers (x, y, z), got {direction!r}"
+        ) from exc
+    if x == 0.0 and y == 0.0 and z == 0.0:
+        raise ValueError("camera_direction must not be the zero vector")
+    view.setViewDirection((x, y, z))
+
+
+def apply_view_orientation(
+    view: Any,
+    view_name: str,
+    camera_direction: Any = None,
+) -> None:
+    """Orient the camera, preferring ``camera_direction`` when it is given."""
+    if camera_direction is not None:
+        apply_camera_direction(view, camera_direction)
+        return
+
     method_name = _VIEW_DISPATCH.get(view_name)
     if method_name is None:
         raise ValueError(f"Invalid view name: {view_name}")
@@ -97,6 +128,7 @@ def save_active_screenshot(
     width: int | None = None,
     height: int | None = None,
     focus_object: str | None = None,
+    camera_direction: Any = None,
 ):
     """Save a PNG of the active view to ``save_path``.
 
@@ -108,7 +140,7 @@ def save_active_screenshot(
         if not hasattr(view, "saveImage"):
             return "Current view does not support screenshots"
 
-        apply_view_orientation(view, view_name)
+        apply_view_orientation(view, view_name, camera_direction)
 
         focused_selection = False
         # The resolved object we frame on (when focus_object is given), kept so
